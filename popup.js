@@ -15,8 +15,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Load stored API key
 async function loadApiKey() {
   const { apiKey } = await chrome.storage.local.get('apiKey');
+  const apiKeyInput = document.getElementById('apiKeyInput');
+
+  // Always clear the field first to prevent duplication
+  apiKeyInput.value = '';
+
   if (apiKey) {
-    document.getElementById('apiKeyInput').value = apiKey;
+    apiKeyInput.value = apiKey;
   }
 }
 
@@ -161,6 +166,9 @@ function showSetupView() {
 
   // Clear purpose input
   document.getElementById('purposeInput').value = '';
+
+  // Don't clear API key - it should persist, but reload it from storage to avoid duplication
+  loadApiKey();
 }
 
 // Show active session view
