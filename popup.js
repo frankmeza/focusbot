@@ -4,6 +4,7 @@ let updateInterval;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
+  console.log('Focus Guardian popup loaded');
   await loadApiKey();
   await checkSessionState();
   await loadLastSummary();
@@ -21,12 +22,16 @@ async function loadApiKey() {
 
 // Check if session is active
 async function checkSessionState() {
-  const response = await chrome.runtime.sendMessage({
-    action: 'getSessionData',
-  });
+  // Check storage directly (more reliable than background script state)
+  const { sessionActive, sessionData } = await chrome.storage.local.get([
+    'sessionActive',
+    'sessionData',
+  ]);
 
-  if (response.sessionActive) {
-    showActiveView(response.sessionData);
+  console.log('Checking session state:', { sessionActive, sessionData });
+
+  if (sessionActive && sessionData) {
+    showActiveView(sessionData);
   } else {
     showSetupView();
   }
@@ -151,10 +156,11 @@ function showActiveView(sessionData) {
 
   // Start update interval
   updateInterval = setInterval(async () => {
-    const response = await chrome.runtime.sendMessage({
-      action: 'getSessionData',
-    });
-    updateSessionStats(response.sessionData);
+    // Read from storage directly for reliability
+    const { sessionData } = await chrome.storage.local.get('sessionData');
+    if (sessionData) {
+      updateSessionStats(sessionData);
+    }
   }, 10000); // Update every 10 seconds
 }
 

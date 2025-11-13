@@ -15,19 +15,44 @@ let sessionData = {
 const CHECK_INTERVAL_MINUTES = 15;
 const ANTHROPIC_API_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
-// Initialize extension
+// Initialize extension - load state on install AND startup
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Focus Guardian installed');
   loadSessionData();
 });
 
+// CRITICAL: Restore state when service worker wakes up
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Focus Guardian service worker starting up');
+  loadSessionData();
+});
+
+// Also restore state whenever the service worker restarts
+loadSessionData(); // Run immediately on script load
+
 // Load session data from storage
 async function loadSessionData() {
   const data = await chrome.storage.local.get(['sessionActive', 'sessionData']);
-  if (data.sessionActive) {
+
+  if (data.sessionActive && data.sessionData) {
     sessionActive = data.sessionActive;
     sessionData = data.sessionData;
+
+    console.log('Restored active session:', sessionData.purpose);
+
+    // Restart monitoring
     startMonitoring();
+
+    // Recreate alarm if it doesn't exist
+    const alarm = await chrome.alarms.get('relevanceCheck');
+    if (!alarm) {
+      console.log('Recreating relevance check alarm');
+      chrome.alarms.create('relevanceCheck', {
+        periodInMinutes: CHECK_INTERVAL_MINUTES,
+      });
+    }
+  } else {
+    console.log('No active session to restore');
   }
 }
 
@@ -41,6 +66,8 @@ async function saveSessionData() {
 
 // Start a focus session
 async function startSession(purpose) {
+  console.log('Starting new focus session:', purpose);
+
   sessionActive = true;
   sessionData = {
     purpose,
@@ -52,12 +79,15 @@ async function startSession(purpose) {
   };
 
   await saveSessionData();
+  console.log('Session data saved to storage');
+
   startMonitoring();
 
   // Set up periodic alarm for relevance checks
   chrome.alarms.create('relevanceCheck', {
     periodInMinutes: CHECK_INTERVAL_MINUTES,
   });
+  console.log('Relevance check alarm created');
 }
 
 // End the focus session
@@ -108,11 +138,15 @@ function trackSiteChange(tab) {
   const domain = new URL(url).hostname;
   const now = Date.now();
 
+  console.log('Tracking site change:', domain);
+
   // Save time spent on previous site
   if (sessionData.currentSite && sessionData.currentSiteStartTime) {
     const timeSpent = Math.floor(
       (now - sessionData.currentSiteStartTime) / 1000 / 60,
     ); // minutes
+
+    console.log(`Spent ${timeSpent} minutes on ${sessionData.currentSite}`);
 
     const existingSite = sessionData.sites.find(
       (s) => s.domain === sessionData.currentSite,
@@ -250,7 +284,7 @@ function showRelevancePopup(question, pageTitle, domain) {
   // Show notification
   chrome.notifications.create({
     type: 'basic',
-    iconUrl: 'icons/icon48.svg',
+    iconUrl: 'icons/icon48.png',
     title: 'Focus Check',
     message: question,
     requireInteraction: true,
