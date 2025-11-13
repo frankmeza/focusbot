@@ -293,8 +293,7 @@ function showRelevancePopup(question, pageTitle, domain) {
 
 // Generate session summary
 async function generateSessionSummary() {
-  const { apiKey } = await chrome.storage.local.get('apiKey');
-  if (!apiKey) return;
+  console.log('Generating session summary...');
 
   const sessionDuration = Math.floor(
     (Date.now() - sessionData.startTime) / 1000 / 60,
@@ -304,11 +303,33 @@ async function generateSessionSummary() {
     .map((s) => `${s.domain} (${s.timeSpent} min)`)
     .join(', ');
 
+  // Create fallback summary in case AI fails
+  const fallbackSummary =
+    `You spent ${sessionDuration} minutes working on: ${sessionData.purpose}. ` +
+    `You visited ${sessionData.sites.length} different sites. ` +
+    `Keep up the focused work!`;
+
+  const { apiKey } = await chrome.storage.local.get('apiKey');
+
+  // If no API key, save fallback immediately
+  if (!apiKey) {
+    console.log('No API key found, using fallback summary');
+    await chrome.storage.local.set({
+      lastSessionSummary: {
+        summary: fallbackSummary,
+        sessionData,
+        timestamp: Date.now(),
+        isFallback: true,
+      },
+    });
+    return;
+  }
+
   const prompt = `You are a helpful focus coach. Provide a brief summary of this focus session.
 
 Original purpose: "${sessionData.purpose}"
 Session duration: ${sessionDuration} minutes
-Sites visited with time: ${sitesVisited}
+Sites visited with time: ${sitesVisited || 'No sites tracked'}
 
 Provide a 3-sentence summary:
 1. What they likely accomplished
@@ -318,6 +339,7 @@ Provide a 3-sentence summary:
 Be positive and constructive.`;
 
   try {
+    console.log('Calling Claude API for summary...');
     const response = await fetch(ANTHROPIC_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -337,19 +359,36 @@ Be positive and constructive.`;
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}`);
+    }
+
     const data = await response.json();
     const summary = data.content[0].text.trim();
 
-    // Store summary
+    console.log('AI summary generated successfully');
+
+    // Store AI-generated summary
     await chrome.storage.local.set({
       lastSessionSummary: {
         summary,
         sessionData,
         timestamp: Date.now(),
+        isFallback: false,
       },
     });
   } catch (error) {
-    console.error('Error generating summary:', error);
+    console.error('Error generating AI summary, using fallback:', error);
+
+    // Save fallback summary if AI fails
+    await chrome.storage.local.set({
+      lastSessionSummary: {
+        summary: fallbackSummary,
+        sessionData,
+        timestamp: Date.now(),
+        isFallback: true,
+      },
+    });
   }
 }
 

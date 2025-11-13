@@ -123,13 +123,34 @@ async function endSession() {
     clearInterval(updateInterval);
   }
 
+  console.log('Ending session and requesting summary...');
   await chrome.runtime.sendMessage({ action: 'endSession' });
 
-  // Wait a moment for summary to be generated
-  setTimeout(async () => {
-    await loadLastSummary();
-    showSummaryView();
-  }, 2000);
+  // Show summary view immediately with loading state
+  showSummaryView();
+
+  // Poll for summary (AI generation takes 3-5 seconds)
+  let attempts = 0;
+  const maxAttempts = 15; // 15 seconds max wait
+
+  const checkForSummary = setInterval(async () => {
+    attempts++;
+    console.log(`Checking for summary (attempt ${attempts}/${maxAttempts})...`);
+
+    const { lastSessionSummary } = await chrome.storage.local.get(
+      'lastSessionSummary',
+    );
+
+    if (lastSessionSummary) {
+      console.log('Summary found!');
+      clearInterval(checkForSummary);
+      loadSummaryData();
+    } else if (attempts >= maxAttempts) {
+      console.log('Summary timeout, showing fallback');
+      clearInterval(checkForSummary);
+      showFallbackSummary();
+    }
+  }, 1000); // Check every second
 }
 
 // Show setup view
@@ -170,6 +191,7 @@ function showSummaryView() {
   document.getElementById('activeView').style.display = 'none';
   document.getElementById('summaryView').style.display = 'block';
 
+  // Show loading state immediately
   loadSummaryData();
 }
 
@@ -200,11 +222,17 @@ function updateSessionStats(sessionData) {
 
 // Load summary data
 async function loadSummaryData() {
-  const { lastSessionSummary } = await chrome.storage.local.get(
+  const { lastSessionSummary, sessionData } = await chrome.storage.local.get([
     'lastSessionSummary',
-  );
+    'sessionData',
+  ]);
 
   if (lastSessionSummary) {
+    console.log(
+      'Displaying summary:',
+      lastSessionSummary.isFallback ? 'fallback' : 'AI-generated',
+    );
+
     const duration = lastSessionSummary.sessionData.sites.reduce(
       (sum, s) => sum + s.timeSpent,
       0,
@@ -214,10 +242,41 @@ async function loadSummaryData() {
     document.getElementById('summarySites').textContent =
       lastSessionSummary.sessionData.sites.length;
     document.getElementById('summaryText').innerHTML = `
-      <p><strong>Your Goal:</strong> ${lastSessionSummary.sessionData.purpose}</p>
+      <p><strong>Your Goal:</strong> ${
+        lastSessionSummary.sessionData.purpose
+      }</p>
       <div class="ai-summary">${lastSessionSummary.summary}</div>
+      ${
+        lastSessionSummary.isFallback
+          ? '<p style="color: #95a5a6; font-size: 12px; margin-top: 8px;">Note: Basic summary (AI generation unavailable)</p>'
+          : ''
+      }
+    `;
+  } else if (sessionData) {
+    // Show loading state with basic info
+    document.getElementById('summaryDuration').textContent = '...';
+    document.getElementById('summarySites').textContent = '...';
+    document.getElementById('summaryText').innerHTML = `
+      <p><strong>Your Goal:</strong> ${sessionData.purpose}</p>
+      <div class="ai-summary" style="text-align: center; color: #7f8c8d;">
+        <p>⏳ Generating your summary...</p>
+        <p style="font-size: 12px;">This may take a few seconds</p>
+      </div>
     `;
   }
+}
+
+// Show fallback summary if AI generation times out
+function showFallbackSummary() {
+  document.getElementById('summaryText').innerHTML = `
+    <div class="ai-summary" style="text-align: center; color: #e74c3c;">
+      <p>⚠️ Unable to generate AI summary</p>
+      <p style="font-size: 13px; color: #7f8c8d; margin-top: 8px;">
+        Your session was saved, but we couldn't generate an AI summary.
+        Check your API key and try again.
+      </p>
+    </div>
+  `;
 }
 
 // Check for pending relevance check
