@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Guardian</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 Focus Guardian</h1>
+        </div>
+
+        <!-- Setup View (when no session is active) -->
+        <div id="setupView" class="view">
+            <div class="setup-section">
+                <h2>Start a Focus Session</h2>
+                <p class="subtitle">I'll help you stay on track with your goal</p>
+
+                <div class="input-group">
+                    <label for="purposeInput">What are you working on?</label>
+                    <textarea id="purposeInput" placeholder="e.g., Research React frameworks for client project"
+                        rows="3"></textarea>
+                </div>
+
+                <div class="input-group">
+                    <label for="apiKeyInput">Anthropic API Key (one-time setup)</label>
+                    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
+                    <small class="hint">
+                        <a href="https://console.anthropic.com/" target="_blank">Get your API key</a>
+                        • Stored locally, never shared
+                    </small>
+                </div>
+
+                <button id="startBtn" class="btn btn-primary">
+                    Start Focus Session
+                </button>
+            </div>
+
+            <!-- Last Session Summary -->
+            <div id="lastSummary" class="summary-section" style="display: none;">
+                <h3>Last Session</h3>
+                <div id="lastSummaryContent"></div>
+            </div>
+        </div>
+
+        <!-- Active Session View -->
+        <div id="activeView" class="view" style="display: none;">
+            <div class="active-section">
+                <div class="status-badge">
+                    <span class="pulse"></span>
+                    Active Session
+                </div>
+
+                <div class="purpose-display">
+                    <strong>Your Goal:</strong>
+                    <p id="activePurpose"></p>
+                </div>
+
+                <div class="session-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="sessionDuration">0m</div>
+                        <div class="stat-label">Session Time</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="sitesVisited">0</div>
+                        <div class="stat-label">Sites Visited</div>
+                    </div>
+                </div>
+
+                <div id="recentSites" class="recent-sites">
+                    <h3>Recent Activity</h3>
+                    <div id="sitesList"></div>
+                </div>
+
+                <!-- Relevance Check (when triggered) -->
+                <div id="relevanceCheck" class="relevance-check" style="display: none;">
+                    <div class="relevance-icon">🤔</div>
+                    <p class="relevance-question" id="relevanceQuestion"></p>
+                    <div class="relevance-context">
+                        <small id="relevanceContext"></small>
+                    </div>
+                    <div class="relevance-actions">
+                        <button class="btn btn-small btn-success" id="yesRelevant">
+                            ✓ Yes, on task
+                        </button>
+                        <button class="btn btn-small btn-warning" id="noDistracted">
+                            → Got distracted
+                        </button>
+                    </div>
+                </div>
+
+                <button id="endBtn" class="btn btn-secondary">
+                    End Session & Get Summary
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary View (after session ends) -->
+        <div id="summaryView" class="view" style="display: none;">
+            <div class="summary-section">
+                <div class="summary-header">
+                    <h2>Session Complete! 🎉</h2>
+                </div>
+
+                <div class="summary-content">
+                    <div id="summaryText"></div>
+                </div>
+
+                <div class="summary-stats">
+                    <div class="stat">
+                        <div class="stat-value" id="summaryDuration"></div>
+                        <div class="stat-label">Total Time</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="summarySites"></div>
+                        <div class="stat-label">Sites Visited</div>
+                    </div>
+                </div>
+
+                <button id="newSessionBtn" class="btn btn-primary">
+                    Start New Session
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

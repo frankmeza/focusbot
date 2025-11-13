@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Guardian - Setup Screen Mockup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .mockup-container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .mockup-title {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .mockup-title h1 {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .mockup-title p {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+
+        .screens {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .screen {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .screen-header {
+            background: #f8f9fa;
+            padding: 12px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+            font-size: 14px;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .screen-body {
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .setup-section h3 {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 13px;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            background: #fafafa;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 70px;
+        }
+
+        .hint {
+            display: block;
+            color: #95a5a6;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .hint a {
+            color: #3498db;
+            text-decoration: none;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #27ae60;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .pulse {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .purpose-display {
+            background: #f8f9fa;
+            border-left: 4px solid #3498db;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .purpose-display strong {
+            display: block;
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .purpose-display p {
+            color: #2c3e50;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .session-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            text-align: center;
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #3498db;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .recent-sites h4 {
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+        }
+
+        .site-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+
+        .site-name {
+            font-size: 13px;
+            color: #2c3e50;
+        }
+
+        .site-time {
+            font-size: 12px;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .relevance-check {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            color: white;
+            text-align: center;
+        }
+
+        .relevance-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+
+        .relevance-question {
+            font-size: 15px;
+            font-weight: 500;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .relevance-context {
+            margin-bottom: 16px;
+            opacity: 0.9;
+            font-size: 12px;
+        }
+
+        .relevance-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn-small {
+            width: auto;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e74c3c;
+            color: white;
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .summary-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .summary-header h3 {
+            font-size: 18px;
+            color: #2c3e50;
+        }
+
+        .ai-summary {
+            background: #f8f9fa;
+            border-left: 4px solid #27ae60;
+            padding: 16px;
+            border-radius: 6px;
+            margin: 12px 0 20px;
+            line-height: 1.6;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="mockup-container">
+        <div class="mockup-title">
+            <h1>🎯 Focus Guardian</h1>
+            <p>Chrome Extension UI Mockups</p>
+        </div>
+
+        <div class="screens">
+            <!-- Screen 1: Setup -->
+            <div class="screen">
+                <div class="screen-header">Setup Screen</div>
+                <div class="screen-body">
+                    <div class="header">
+                        <h2>🎯 Focus Guardian</h2>
+                    </div>
+
+                    <div class="setup-section">
+                        <h3>Start a Focus Session</h3>
+                        <p class="subtitle">I'll help you stay on track with your goal</p>
+
+                        <div class="input-group">
+                            <label>What are you working on?</label>
+                            <textarea
+                                placeholder="e.g., Research React frameworks for client project">Research React frameworks for client project</textarea>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Anthropic API Key (one-time setup)</label>
+                            <input type="password" placeholder="sk-ant-..." value="••••••••••••••••" />
+                            <small class="hint">
+                                <a href="#">Get your API key</a> • Stored locally, never shared
+                            </small>
+                        </div>
+
+                        <button class="btn">
+                            Start Focus Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screen 2: Active Session -->
+            <div class="screen">
+                <div class="screen-header">Active Session Screen</div>
+                <div class="screen-body">
+                    <div class="header">
+                        <h2>🎯 Focus Guardian</h2>
+                    </div>
+
+                    <div class="status-badge">
+                        <span class="pulse"></span>
+                        Active Session
+                    </div>
+
+                    <div class="purpose-display">
+                        <strong>Your Goal:</strong>
+                        <p>Research React frameworks for client project</p>
+                    </div>
+
+                    <div class="session-stats">
+                        <div class="stat">
+                            <div class="stat-value">42m</div>
+                            <div class="stat-label">Session Time</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">5</div>
+                            <div class="stat-label">Sites Visited</div>
+                        </div>
+                    </div>
+
+                    <div class="recent-sites">
+                        <h4>Recent Activity</h4>
+                        <div class="site-item">
+                            <div class="site-name">nextjs.org</div>
+                            <div class="site-time">18m</div>
+                        </div>
+                        <div class="site-item">
+                            <div class="site-name">react.dev</div>
+                            <div class="site-time">12m</div>
+                        </div>
+                        <div class="site-item">
+                            <div class="site-name">reddit.com/r/reactjs</div>
+                            <div class="site-time">8m</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-secondary">
+                        End Session & Get Summary
+                    </button>
+                </div>
+            </div>
+
+            <!-- Screen 3: Relevance Check -->
+            <div class="screen">
+                <div class="screen-header">Relevance Check Screen</div>
+                <div class="screen-body">
+                    <div class="header">
+                        <h2>🎯 Focus Guardian</h2>
+                    </div>
+
+                    <div class="status-badge">
+                        <span class="pulse"></span>
+                        Active Session
+                    </div>
+
+                    <div class="purpose-display">
+                        <strong>Your Goal:</strong>
+                        <p>Research React frameworks for client project</p>
+                    </div>
+
+                    <div class="relevance-check">
+                        <div class="relevance-icon">🤔</div>
+                        <p class="relevance-question">Does browsing Reddit help with your framework research, or is it a
+                            quick mental break?</p>
+                        <div class="relevance-context">
+                            Currently viewing: Discussion about Next.js vs Remix
+                        </div>
+                        <div class="relevance-actions">
+                            <button class="btn btn-small btn-success">
+                                ✓ Yes, on task
+                            </button>
+                            <button class="btn btn-small btn-warning">
+                                → Got distracted
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="session-stats">
+                        <div class="stat">
+                            <div class="stat-value">42m</div>
+                            <div class="stat-label">Session Time</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">5</div>
+                            <div class="stat-label">Sites Visited</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-secondary">
+                        End Session & Get Summary
+                    </button>
+                </div>
+            </div>
+
+            <!-- Screen 4: Summary -->
+            <div class="screen">
+                <div class="screen-header">Summary Screen</div>
+                <div class="screen-body">
+                    <div class="header">
+                        <h2>🎯 Focus Guardian</h2>
+                    </div>
+
+                    <div class="summary-header">
+                        <h3>Session Complete! 🎉</h3>
+                    </div>
+
+                    <div class="summary-content">
+                        <p><strong>Your Goal:</strong> Research React frameworks for client project</p>
+
+                        <div class="ai-summary">
+                            You spent 42 focused minutes exploring Next.js and comparing it to other frameworks -
+                            excellent research work! Reddit took about 8 minutes, which was a reasonable break and you
+                            found relevant discussions. Next time, try bookmarking key articles as you find them so you
+                            can easily compile your findings without re-searching.
+                        </div>
+                    </div>
+
+                    <div class="session-stats">
+                        <div class="stat">
+                            <div class="stat-value">42m</div>
+                            <div class="stat-label">Total Time</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value">5</div>
+                            <div class="stat-label">Sites Visited</div>
+                        </div>
+                    </div>
+
+                    <button class="btn">
+                        Start New Session
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; color: white; margin-top: 40px;">
+            <p style="font-size: 14px; opacity: 0.8;">
+                Focus Guardian MVP Mockups • Extension popup will be ~400px wide
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>

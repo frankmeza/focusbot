@@ -1,0 +1,247 @@
+// Popup script for Focus Guardian
+
+let updateInterval;
+
+// Initialize popup
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadApiKey();
+  await checkSessionState();
+  await loadLastSummary();
+  setupEventListeners();
+  checkForPendingRelevanceCheck();
+});
+
+// Load stored API key
+async function loadApiKey() {
+  const { apiKey } = await chrome.storage.local.get('apiKey');
+  if (apiKey) {
+    document.getElementById('apiKeyInput').value = apiKey;
+  }
+}
+
+// Check if session is active
+async function checkSessionState() {
+  const response = await chrome.runtime.sendMessage({
+    action: 'getSessionData',
+  });
+
+  if (response.sessionActive) {
+    showActiveView(response.sessionData);
+  } else {
+    showSetupView();
+  }
+}
+
+// Load last session summary
+async function loadLastSummary() {
+  const { lastSessionSummary } = await chrome.storage.local.get(
+    'lastSessionSummary',
+  );
+
+  if (lastSessionSummary) {
+    const summaryDiv = document.getElementById('lastSummary');
+    const contentDiv = document.getElementById('lastSummaryContent');
+
+    const sessionDuration = Math.floor(
+      lastSessionSummary.sessionData.sites.reduce(
+        (sum, s) => sum + s.timeSpent,
+        0,
+      ),
+    );
+
+    contentDiv.innerHTML = `
+      <p class="summary-timestamp">${new Date(
+        lastSessionSummary.timestamp,
+      ).toLocaleString()}</p>
+      <p><strong>Purpose:</strong> ${lastSessionSummary.sessionData.purpose}</p>
+      <p><strong>Duration:</strong> ${sessionDuration} minutes</p>
+      <div class="ai-summary">${lastSessionSummary.summary}</div>
+    `;
+
+    summaryDiv.style.display = 'block';
+  }
+}
+
+// Setup event listeners
+function setupEventListeners() {
+  document.getElementById('startBtn').addEventListener('click', startSession);
+  document.getElementById('endBtn').addEventListener('click', endSession);
+  document.getElementById('newSessionBtn').addEventListener('click', () => {
+    showSetupView();
+  });
+
+  // Relevance check responses
+  document.getElementById('yesRelevant').addEventListener('click', () => {
+    hideRelevanceCheck();
+  });
+
+  document.getElementById('noDistracted').addEventListener('click', () => {
+    hideRelevanceCheck();
+    // Could track distraction events here
+  });
+}
+
+// Start a new focus session
+async function startSession() {
+  const purpose = document.getElementById('purposeInput').value.trim();
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+
+  if (!purpose) {
+    alert("Please enter what you're working on");
+    return;
+  }
+
+  if (!apiKey) {
+    alert('Please enter your Anthropic API key');
+    return;
+  }
+
+  // Save API key
+  await chrome.storage.local.set({ apiKey });
+
+  // Start session
+  await chrome.runtime.sendMessage({
+    action: 'startSession',
+    purpose,
+  });
+
+  // Update UI
+  const response = await chrome.runtime.sendMessage({
+    action: 'getSessionData',
+  });
+  showActiveView(response.sessionData);
+}
+
+// End the focus session
+async function endSession() {
+  if (updateInterval) {
+    clearInterval(updateInterval);
+  }
+
+  await chrome.runtime.sendMessage({ action: 'endSession' });
+
+  // Wait a moment for summary to be generated
+  setTimeout(async () => {
+    await loadLastSummary();
+    showSummaryView();
+  }, 2000);
+}
+
+// Show setup view
+function showSetupView() {
+  document.getElementById('setupView').style.display = 'block';
+  document.getElementById('activeView').style.display = 'none';
+  document.getElementById('summaryView').style.display = 'none';
+
+  // Clear purpose input
+  document.getElementById('purposeInput').value = '';
+}
+
+// Show active session view
+function showActiveView(sessionData) {
+  document.getElementById('setupView').style.display = 'none';
+  document.getElementById('activeView').style.display = 'block';
+  document.getElementById('summaryView').style.display = 'none';
+
+  // Update purpose display
+  document.getElementById('activePurpose').textContent = sessionData.purpose;
+
+  // Update stats
+  updateSessionStats(sessionData);
+
+  // Start update interval
+  updateInterval = setInterval(async () => {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getSessionData',
+    });
+    updateSessionStats(response.sessionData);
+  }, 10000); // Update every 10 seconds
+}
+
+// Show summary view
+function showSummaryView() {
+  document.getElementById('setupView').style.display = 'none';
+  document.getElementById('activeView').style.display = 'none';
+  document.getElementById('summaryView').style.display = 'block';
+
+  loadSummaryData();
+}
+
+// Update session stats
+function updateSessionStats(sessionData) {
+  const duration = Math.floor((Date.now() - sessionData.startTime) / 1000 / 60);
+  document.getElementById('sessionDuration').textContent = `${duration}m`;
+  document.getElementById('sitesVisited').textContent =
+    sessionData.sites.length;
+
+  // Update recent sites
+  const sitesList = document.getElementById('sitesList');
+  const recentSites = sessionData.sites
+    .sort((a, b) => b.lastVisit - a.lastVisit)
+    .slice(0, 5);
+
+  sitesList.innerHTML = recentSites
+    .map(
+      (site) => `
+    <div class="site-item">
+      <div class="site-name">${site.domain}</div>
+      <div class="site-time">${site.timeSpent}m</div>
+    </div>
+  `,
+    )
+    .join('');
+}
+
+// Load summary data
+async function loadSummaryData() {
+  const { lastSessionSummary } = await chrome.storage.local.get(
+    'lastSessionSummary',
+  );
+
+  if (lastSessionSummary) {
+    const duration = lastSessionSummary.sessionData.sites.reduce(
+      (sum, s) => sum + s.timeSpent,
+      0,
+    );
+
+    document.getElementById('summaryDuration').textContent = `${duration}m`;
+    document.getElementById('summarySites').textContent =
+      lastSessionSummary.sessionData.sites.length;
+    document.getElementById('summaryText').innerHTML = `
+      <p><strong>Your Goal:</strong> ${lastSessionSummary.sessionData.purpose}</p>
+      <div class="ai-summary">${lastSessionSummary.summary}</div>
+    `;
+  }
+}
+
+// Check for pending relevance check
+async function checkForPendingRelevanceCheck() {
+  const { pendingRelevanceCheck } = await chrome.storage.local.get(
+    'pendingRelevanceCheck',
+  );
+
+  if (pendingRelevanceCheck) {
+    // Check if it's recent (within last 5 minutes)
+    const age = Date.now() - pendingRelevanceCheck.timestamp;
+    if (age < 5 * 60 * 1000) {
+      showRelevanceCheck(pendingRelevanceCheck);
+    }
+  }
+}
+
+// Show relevance check
+function showRelevanceCheck(checkData) {
+  const relevanceDiv = document.getElementById('relevanceCheck');
+  document.getElementById('relevanceQuestion').textContent = checkData.question;
+  document.getElementById(
+    'relevanceContext',
+  ).textContent = `Currently viewing: ${checkData.pageTitle}`;
+
+  relevanceDiv.style.display = 'block';
+}
+
+// Hide relevance check
+async function hideRelevanceCheck() {
+  document.getElementById('relevanceCheck').style.display = 'none';
+  await chrome.storage.local.remove('pendingRelevanceCheck');
+}
