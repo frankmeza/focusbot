@@ -48,49 +48,55 @@ function saveSessionState() {
   chrome.storage.local.set({ sessionState });
 }
 
-// Validate API key
-async function validateApiKey(apiKey) {
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 10,
-        messages: [{ role: 'user', content: 'Hi' }],
-      }),
-    });
-
-    if (response.ok) {
-      return { valid: true };
-    } else {
-      const error = await response.json();
-      return {
-        valid: false,
-        error: error.error?.message || 'Invalid API key',
-      };
-    }
-  } catch (error) {
+// Validate API key format (client-side only)
+function validateApiKey(apiKey) {
+  // Check if key exists and is a string
+  if (!apiKey || typeof apiKey !== 'string') {
     return {
       valid: false,
-      error: 'Network error: ' + error.message,
+      error: 'API key is required',
     };
   }
+
+  // Trim whitespace
+  apiKey = apiKey.trim();
+
+  // Check if it starts with the correct prefix
+  if (!apiKey.startsWith('sk-ant-')) {
+    return {
+      valid: false,
+      error: 'API key must start with "sk-ant-"',
+    };
+  }
+
+  // Check minimum length (Anthropic keys are typically 100+ characters)
+  if (apiKey.length < 100) {
+    return {
+      valid: false,
+      error: 'API key appears to be incomplete (too short)',
+    };
+  }
+
+  // Check maximum reasonable length
+  if (apiKey.length > 200) {
+    return {
+      valid: false,
+      error: 'API key appears to be invalid (too long)',
+    };
+  }
+
+  // Basic format check passed
+  return { valid: true };
 }
 
 // Start a new focus session
 async function startSession(purpose, apiKey) {
-  // Validate API key first
-  const validation = await validateApiKey(apiKey);
+  // Validate API key format
+  const validation = validateApiKey(apiKey);
   if (!validation.valid) {
     return {
       success: false,
-      error: validation.error || 'Invalid API key',
+      error: validation.error || 'Invalid API key format',
     };
   }
 
@@ -98,7 +104,7 @@ async function startSession(purpose, apiKey) {
     active: true,
     purpose,
     startTime: Date.now(),
-    apiKey,
+    apiKey: apiKey.trim(),
     lastCheckTime: Date.now(),
     checkIntervalId: null,
     visitedUrls: [],
@@ -284,9 +290,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'validateApiKey') {
-    validateApiKey(request.apiKey).then((result) => {
-      sendResponse(result);
-    });
+    const result = validateApiKey(request.apiKey);
+    sendResponse(result);
     return true;
   }
 
