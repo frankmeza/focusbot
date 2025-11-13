@@ -141,6 +141,13 @@ textarea {
   box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
 }
 
+.btn-primary:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .btn-secondary {
   background: #e74c3c;
   color: white;

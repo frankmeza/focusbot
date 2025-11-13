@@ -106,20 +106,51 @@ async function startSession() {
     return;
   }
 
-  // Save API key
-  await chrome.storage.local.set({ apiKey });
+  // Disable button and show loading state
+  const startBtn = document.getElementById('startBtn');
+  const originalText = startBtn.textContent;
+  startBtn.disabled = true;
+  startBtn.textContent = 'Validating API key...';
 
-  // Start session
-  await chrome.runtime.sendMessage({
-    action: 'startSession',
-    purpose,
-  });
+  try {
+    // Validate API key first
+    console.log('Validating API key before starting session...');
+    const validation = await chrome.runtime.sendMessage({
+      action: 'validateApiKey',
+      apiKey,
+    });
 
-  // Update UI
-  const response = await chrome.runtime.sendMessage({
-    action: 'getSessionData',
-  });
-  showActiveView(response.sessionData);
+    if (!validation.valid) {
+      // Show error and re-enable button
+      alert(`API Key Error: ${validation.error}`);
+      startBtn.disabled = false;
+      startBtn.textContent = originalText;
+      return;
+    }
+
+    console.log('API key validated successfully');
+
+    // Save API key
+    await chrome.storage.local.set({ apiKey });
+
+    // Start session
+    startBtn.textContent = 'Starting session...';
+    await chrome.runtime.sendMessage({
+      action: 'startSession',
+      purpose,
+    });
+
+    // Update UI
+    const { sessionData } = await chrome.storage.local.get('sessionData');
+    if (sessionData) {
+      showActiveView(sessionData);
+    }
+  } catch (error) {
+    console.error('Error starting session:', error);
+    alert('Error starting session. Please try again.');
+    startBtn.disabled = false;
+    startBtn.textContent = originalText;
+  }
 }
 
 // End the focus session

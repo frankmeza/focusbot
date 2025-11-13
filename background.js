@@ -15,6 +15,62 @@ let sessionData = {
 const CHECK_INTERVAL_MINUTES = 15;
 const ANTHROPIC_API_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 
+// Validate API key by making a minimal test call
+async function validateApiKey(apiKey) {
+  console.log('Validating API key...');
+
+  try {
+    const response = await fetch(ANTHROPIC_API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 10,
+        messages: [
+          {
+            role: 'user',
+            content: 'Hi',
+          },
+        ],
+      }),
+    });
+
+    if (response.ok) {
+      console.log('API key validated successfully');
+      return { valid: true };
+    } else if (response.status === 401) {
+      console.error('API key validation failed: Invalid key');
+      return {
+        valid: false,
+        error: 'Invalid API key. Please check your key and try again.',
+      };
+    } else if (response.status === 429) {
+      console.error('API key validation failed: Rate limited');
+      return {
+        valid: false,
+        error: 'Rate limit exceeded. Please wait a moment and try again.',
+      };
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('API key validation failed:', response.status, errorData);
+      return {
+        valid: false,
+        error: `API error (${response.status}). Please try again.`,
+      };
+    }
+  } catch (error) {
+    console.error('API key validation error:', error);
+    return {
+      valid: false,
+      error: 'Network error. Please check your connection and try again.',
+    };
+  }
+}
+
 // Initialize extension - load state on install AND startup
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Focus Guardian installed');
@@ -402,6 +458,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
   } else if (request.action === 'getSessionData') {
     sendResponse({ sessionActive, sessionData });
+  } else if (request.action === 'validateApiKey') {
+    // Handle async validation
+    validateApiKey(request.apiKey).then((result) => {
+      sendResponse(result);
+    });
+    return true; // Keep message channel open for async response
   }
   return true;
 });
