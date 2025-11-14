@@ -229,7 +229,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 // Generate session summary
 async function generateSummary() {
-  if (!sessionState.active || sessionState.summaryGenerating) {
+  if (sessionState.summaryGenerating) {
     return { success: false, error: 'Cannot generate summary' };
   }
 
