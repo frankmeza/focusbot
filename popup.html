@@ -13,6 +13,7 @@
         <!-- Header -->
         <div class="header">
             <h1>🎯 Focus Guardian</h1>
+            <button id="resetBtn" class="reset-btn" title="Clear all data and reset (Dev tool)">🔄</button>
         </div>
 
         <!-- Setup View (when no session is active) -->
@@ -24,12 +25,12 @@
                 <div class="input-group">
                     <label for="purposeInput">What are you working on?</label>
                     <textarea id="purposeInput" placeholder="e.g., Research React frameworks for client project"
-                        rows="3"></textarea>
+                        rows="3" autocomplete="off"></textarea>
                 </div>
 
                 <div class="input-group">
                     <label for="apiKeyInput">Anthropic API Key (one-time setup)</label>
-                    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
+                    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
                     <small class="hint">
                         <a href="https://console.anthropic.com/" target="_blank">Get your API key</a>
                         • Stored locally, never shared
@@ -125,6 +126,24 @@
                 <button id="newSessionBtn" class="btn btn-primary">
                     Start New Session
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Modal -->
+    <div id="resetModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Reset Focus Guardian</h3>
+            <p>This will clear all session data and reload the extension.</p>
+
+            <label class="checkbox-label">
+                <input type="checkbox" id="keepApiKey" checked>
+                <span>Keep my API key</span>
+            </label>
+
+            <div class="modal-actions">
+                <button id="confirmReset" class="btn btn-primary btn-small">Reset</button>
+                <button id="cancelReset" class="btn btn-secondary btn-small">Cancel</button>
             </div>
         </div>
     </div>

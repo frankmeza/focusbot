@@ -1,334 +1,429 @@
-// Background service worker for Focus Guardian
+// Focus Guardian - Background Service Worker
 
-// State management
-let sessionActive = false;
-let sessionData = {
+const AI_CHECK_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const SUMMARY_TIMEOUT = 30000; // 30 seconds timeout for summary generation
+const SUMMARY_POLL_INTERVAL = 2000; // Poll every 2 seconds
+
+let sessionState = {
+  active: false,
   purpose: '',
   startTime: null,
-  sites: [],
-  currentSite: null,
-  currentSiteStartTime: null,
+  apiKey: '',
   lastCheckTime: null,
+  checkIntervalId: null,
+  visitedUrls: [],
+  responses: [],
+  summaryGenerating: false,
+  summaryReady: false,
+  summary: null,
 };
 
-// Constants
-const CHECK_INTERVAL_MINUTES = 15;
-const ANTHROPIC_API_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+// Load session state from storage when service worker starts
+chrome.storage.local.get(['sessionState'], (result) => {
+  if (result.sessionState) {
+    sessionState = result.sessionState;
 
-// Initialize extension
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('Focus Guardian installed');
-  loadSessionData();
+    // If there was an active session, resume the check interval
+    if (sessionState.active && sessionState.apiKey) {
+      const timeSinceLastCheck = Date.now() - (sessionState.lastCheckTime || 0);
+      const timeUntilNextCheck = Math.max(
+        0,
+        AI_CHECK_INTERVAL - timeSinceLastCheck,
+      );
+
+      sessionState.checkIntervalId = setTimeout(() => {
+        performAICheck();
+        // Set up regular interval after first check
+        sessionState.checkIntervalId = setInterval(
+          performAICheck,
+          AI_CHECK_INTERVAL,
+        );
+      }, timeUntilNextCheck);
+    }
+  }
 });
 
-// Load session data from storage
-async function loadSessionData() {
-  const data = await chrome.storage.local.get(['sessionActive', 'sessionData']);
-  if (data.sessionActive) {
-    sessionActive = data.sessionActive;
-    sessionData = data.sessionData;
-    startMonitoring();
+// Save session state to storage whenever it changes
+function saveSessionState() {
+  chrome.storage.local.set({ sessionState });
+
+  // Also save in the format the popup expects
+  if (sessionState.active) {
+    chrome.storage.local.set({
+      sessionActive: true,
+      sessionData: {
+        purpose: sessionState.purpose,
+        startTime: sessionState.startTime,
+        sites: sessionState.visitedUrls.map((url) => ({
+          domain: new URL(url.url).hostname,
+          url: url.url,
+          timeSpent: 0, // Could calculate this if needed
+          lastVisit: url.timestamp,
+        })),
+      },
+    });
+  } else {
+    chrome.storage.local.set({ sessionActive: false });
   }
 }
 
-// Save session data to storage
-async function saveSessionData() {
-  await chrome.storage.local.set({
-    sessionActive,
-    sessionData,
-  });
+// Validate API key format (client-side only)
+function validateApiKey(apiKey) {
+  // Check if key exists and is a string
+  if (!apiKey || typeof apiKey !== 'string') {
+    return {
+      valid: false,
+      error: 'API key is required',
+    };
+  }
+
+  // Trim whitespace
+  apiKey = apiKey.trim();
+
+  // Check if it starts with the correct prefix
+  if (!apiKey.startsWith('sk-ant-')) {
+    return {
+      valid: false,
+      error: 'API key must start with "sk-ant-"',
+    };
+  }
+
+  // Check minimum length (Anthropic keys are typically 100+ characters)
+  if (apiKey.length < 100) {
+    return {
+      valid: false,
+      error: 'API key appears to be incomplete (too short)',
+    };
+  }
+
+  // Check maximum reasonable length
+  if (apiKey.length > 200) {
+    return {
+      valid: false,
+      error: 'API key appears to be invalid (too long)',
+    };
+  }
+
+  // Basic format check passed
+  return { valid: true };
 }
 
-// Start a focus session
-async function startSession(purpose) {
-  sessionActive = true;
-  sessionData = {
+// Start a new focus session
+async function startSession(purpose, apiKey) {
+  console.log('startSession called with purpose:', purpose);
+
+  // Validate API key format
+  const validation = validateApiKey(apiKey);
+  console.log('Validation result:', validation);
+
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: validation.error || 'Invalid API key format',
+    };
+  }
+
+  sessionState = {
+    active: true,
     purpose,
     startTime: Date.now(),
-    sites: [],
-    currentSite: null,
-    currentSiteStartTime: null,
+    apiKey: apiKey.trim(),
     lastCheckTime: Date.now(),
+    checkIntervalId: null,
+    visitedUrls: [],
+    responses: [],
+    summaryGenerating: false,
+    summaryReady: false,
+    summary: null,
   };
 
-  await saveSessionData();
-  startMonitoring();
+  console.log('Session state set, saving...');
+  saveSessionState();
 
-  // Set up periodic alarm for relevance checks
-  chrome.alarms.create('relevanceCheck', {
-    periodInMinutes: CHECK_INTERVAL_MINUTES,
-  });
+  // Set up the periodic AI check
+  sessionState.checkIntervalId = setInterval(performAICheck, AI_CHECK_INTERVAL);
+
+  console.log('Session started successfully');
+  // Perform first check after 15 minutes
+  return { success: true };
 }
 
-// End the focus session
-async function endSession() {
-  sessionActive = false;
-  chrome.alarms.clear('relevanceCheck');
+// Perform an AI relevance check
+async function performAICheck() {
+  if (!sessionState.active) return;
 
-  // Generate final summary
-  await generateSessionSummary();
+  sessionState.lastCheckTime = Date.now();
+  saveSessionState();
 
-  await saveSessionData();
-}
+  const recentUrls = sessionState.visitedUrls.slice(-10);
+  const urlList = recentUrls
+    .map((u) => `- ${u.title || 'Untitled'} (${u.url})`)
+    .join('\n');
 
-// Start monitoring tabs
-function startMonitoring() {
-  // Track current tab
-  chrome.tabs.onActivated.addListener(handleTabActivated);
-  chrome.tabs.onUpdated.addListener(handleTabUpdated);
-}
+  const prompt = `The user set this focus intention: "${sessionState.purpose}"
 
-// Handle tab activation
-async function handleTabActivated(activeInfo) {
-  if (!sessionActive) return;
+They've recently visited these pages:
+${urlList}
 
-  const tab = await chrome.tabs.get(activeInfo.tabId);
-  trackSiteChange(tab);
-}
-
-// Handle tab updates
-async function handleTabUpdated(tabId, changeInfo, tab) {
-  if (!sessionActive) return;
-  if (changeInfo.status === 'complete') {
-    const activeTab = await chrome.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    if (activeTab[0]?.id === tabId) {
-      trackSiteChange(tab);
-    }
-  }
-}
-
-// Track when user changes sites
-function trackSiteChange(tab) {
-  const url = tab.url;
-  if (!url || url.startsWith('chrome://')) return;
-
-  const domain = new URL(url).hostname;
-  const now = Date.now();
-
-  // Save time spent on previous site
-  if (sessionData.currentSite && sessionData.currentSiteStartTime) {
-    const timeSpent = Math.floor(
-      (now - sessionData.currentSiteStartTime) / 1000 / 60,
-    ); // minutes
-
-    const existingSite = sessionData.sites.find(
-      (s) => s.domain === sessionData.currentSite,
-    );
-    if (existingSite) {
-      existingSite.timeSpent += timeSpent;
-      existingSite.visits += 1;
-      existingSite.lastVisit = now;
-    } else {
-      sessionData.sites.push({
-        domain: sessionData.currentSite,
-        title: tab.title,
-        timeSpent,
-        visits: 1,
-        lastVisit: now,
-      });
-    }
-  }
-
-  // Update current site
-  sessionData.currentSite = domain;
-  sessionData.currentSiteStartTime = now;
-
-  saveSessionData();
-}
-
-// Listen for alarm to trigger relevance check
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'relevanceCheck' && sessionActive) {
-    performRelevanceCheck();
-  }
-});
-
-// Perform AI-powered relevance check
-async function performRelevanceCheck() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const currentTab = tabs[0];
-
-  if (!currentTab || !currentTab.url || currentTab.url.startsWith('chrome://'))
-    return;
-
-  const domain = new URL(currentTab.url).hostname;
-  const timeOnCurrentSite = Math.floor(
-    (Date.now() - sessionData.currentSiteStartTime) / 1000 / 60,
-  );
-
-  // Get last 3 sites
-  const recentSites = sessionData.sites
-    .slice(-3)
-    .map((s) => s.domain)
-    .join(', ');
-
-  // Get API key from storage
-  const { apiKey } = await chrome.storage.local.get('apiKey');
-  if (!apiKey) {
-    console.error('No API key found');
-    return;
-  }
-
-  // Call Claude API for relevance check
-  const question = await generateRelevanceQuestion(
-    sessionData.purpose,
-    currentTab.title,
-    domain,
-    timeOnCurrentSite,
-    recentSites,
-    apiKey,
-  );
-
-  // Show notification popup
-  showRelevancePopup(question, currentTab.title, domain);
-
-  sessionData.lastCheckTime = Date.now();
-  await saveSessionData();
-}
-
-// Generate relevance question using Claude
-async function generateRelevanceQuestion(
-  purpose,
-  pageTitle,
-  domain,
-  timeSpent,
-  recentSites,
-  apiKey,
-) {
-  const prompt = `You are a helpful focus assistant. The user is trying to stay focused on a task.
-
-Their stated purpose: "${purpose}"
-Current page: ${pageTitle} (${domain})
-Time on this page: ${timeSpent} minutes
-Recent pages visited: ${recentSites}
-
-Generate ONE brief, helpful question (max 20 words) to check if they're staying on task. Be encouraging and non-judgmental. Just the question, no extra text.`;
+Generate a brief, direct question (one sentence) that helps them reflect on whether their browsing aligns with their stated purpose. Be conversational and non-judgmental.`;
 
   try {
-    const response = await fetch(ANTHROPIC_API_ENDPOINT, {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'x-api-key': sessionState.apiKey,
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 100,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        max_tokens: 150,
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
+    if (!response.ok) {
+      console.error('AI check failed:', await response.text());
+      return;
+    }
+
     const data = await response.json();
-    return data.content[0].text.trim();
+    const question = data.content[0].text;
+
+    // Show notification with the question
+    chrome.notifications.create({
+      type: 'basic',
+      iconUrl: 'icon128.png',
+      title: 'Focus Check',
+      message: question,
+      priority: 2,
+    });
+
+    // Store the question for later reference
+    sessionState.responses.push({
+      timestamp: Date.now(),
+      question,
+      userResponse: null,
+    });
+    saveSessionState();
   } catch (error) {
-    console.error('Error calling Claude API:', error);
-    return `Is browsing ${domain} helping you with: ${purpose}?`;
+    console.error('Error performing AI check:', error);
   }
 }
 
-// Show relevance popup
-function showRelevancePopup(question, pageTitle, domain) {
-  // Send message to popup to show relevance check
-  chrome.storage.local.set({
-    pendingRelevanceCheck: {
-      question,
-      pageTitle,
-      domain,
-      timestamp: Date.now(),
-    },
-  });
-
-  // Show notification
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icons/icon48.svg',
-    title: 'Focus Check',
-    message: question,
-    requireInteraction: true,
-  });
-}
+// Track visited URLs
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (sessionState.active && changeInfo.status === 'complete' && tab.url) {
+    // Only track http/https URLs
+    if (tab.url.startsWith('http')) {
+      sessionState.visitedUrls.push({
+        url: tab.url,
+        title: tab.title,
+        timestamp: Date.now(),
+      });
+      saveSessionState();
+    }
+  }
+});
 
 // Generate session summary
-async function generateSessionSummary() {
-  const { apiKey } = await chrome.storage.local.get('apiKey');
-  if (!apiKey) return;
+async function generateSummary() {
+  if (sessionState.summaryGenerating) {
+    return { success: false, error: 'Cannot generate summary' };
+  }
 
-  const sessionDuration = Math.floor(
-    (Date.now() - sessionData.startTime) / 1000 / 60,
+  sessionState.summaryGenerating = true;
+  sessionState.summaryReady = false;
+  saveSessionState();
+
+  const duration = Math.floor(
+    (Date.now() - sessionState.startTime) / 1000 / 60,
   );
-  const sitesVisited = sessionData.sites
-    .sort((a, b) => b.timeSpent - a.timeSpent)
-    .map((s) => `${s.domain} (${s.timeSpent} min)`)
-    .join(', ');
+  const urlList = sessionState.visitedUrls
+    .map((u) => `- ${u.title || 'Untitled'} (${u.url})`)
+    .join('\n');
 
-  const prompt = `You are a helpful focus coach. Provide a brief summary of this focus session.
+  const prompt = `The user set this focus intention: "${sessionState.purpose}"
 
-Original purpose: "${sessionData.purpose}"
-Session duration: ${sessionDuration} minutes
-Sites visited with time: ${sitesVisited}
+Session duration: ${duration} minutes
 
-Provide a 3-sentence summary:
-1. What they likely accomplished
-2. Where they may have gotten distracted (if at all)
-3. One encouraging tip for next time
+Pages visited:
+${urlList}
 
-Be positive and constructive.`;
+Please provide a brief, encouraging summary (3-4 sentences) of their browsing session. Acknowledge what they accomplished, note if they stayed focused or got distracted, and offer a gentle insight or suggestion for next time.`;
 
   try {
-    const response = await fetch(ANTHROPIC_API_ENDPOINT, {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'x-api-key': sessionState.apiKey,
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 300,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
-    const data = await response.json();
-    const summary = data.content[0].text.trim();
+    if (!response.ok) {
+      throw new Error('API request failed');
+    }
 
-    // Store summary
+    const data = await response.json();
+    const summaryText = data.content[0].text;
+
+    sessionState.summary = summaryText;
+    sessionState.summaryReady = true;
+    sessionState.summaryGenerating = false;
+    saveSessionState();
+
+    // Calculate actual session duration
+    const sessionDuration = Math.floor(
+      (Date.now() - sessionState.startTime) / 1000 / 60,
+    );
+
+    // Save in the format the popup expects
     await chrome.storage.local.set({
       lastSessionSummary: {
-        summary,
-        sessionData,
         timestamp: Date.now(),
+        sessionData: {
+          purpose: sessionState.purpose,
+          startTime: sessionState.startTime,
+          duration: sessionDuration,
+          sites: sessionState.visitedUrls.map((url) => ({
+            domain: new URL(url.url).hostname,
+            url: url.url,
+            timeSpent: 0, // We don't track per-page time
+            lastVisit: url.timestamp,
+          })),
+        },
+        summary: summaryText,
+        isFallback: false,
       },
     });
+
+    console.log('Summary saved to storage');
+    return { success: true };
   } catch (error) {
     console.error('Error generating summary:', error);
+
+    // Calculate actual session duration
+    const sessionDuration = Math.floor(
+      (Date.now() - sessionState.startTime) / 1000 / 60,
+    );
+
+    // Provide fallback summary
+    const fallbackText = `Session completed! You browsed for ${sessionDuration} minutes with the goal: "${sessionState.purpose}". You visited ${sessionState.visitedUrls.length} pages. Keep up the focused work!`;
+
+    sessionState.summary = fallbackText;
+    sessionState.summaryReady = true;
+    sessionState.summaryGenerating = false;
+    saveSessionState();
+
+    // Save in the format the popup expects
+    await chrome.storage.local.set({
+      lastSessionSummary: {
+        timestamp: Date.now(),
+        sessionData: {
+          purpose: sessionState.purpose,
+          startTime: sessionState.startTime,
+          duration: sessionDuration,
+          sites: sessionState.visitedUrls.map((url) => ({
+            domain: new URL(url.url).hostname,
+            url: url.url,
+            timeSpent: 0, // We don't track per-page time
+            lastVisit: url.timestamp,
+          })),
+        },
+        summary: fallbackText,
+        isFallback: true,
+      },
+    });
+
+    console.log('Fallback summary saved to storage');
+    return { success: true, fallback: true };
   }
 }
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'startSession') {
-    startSession(request.purpose);
-    sendResponse({ success: true });
-  } else if (request.action === 'endSession') {
-    endSession();
-    sendResponse({ success: true });
-  } else if (request.action === 'getSessionData') {
-    sendResponse({ sessionActive, sessionData });
+// End session
+async function endSession() {
+  // Clear the check interval
+  if (sessionState.checkIntervalId) {
+    clearInterval(sessionState.checkIntervalId);
   }
-  return true;
+
+  // Mark session as inactive but keep data for summary
+  sessionState.active = false;
+  saveSessionState();
+
+  // Start generating summary
+  return await generateSummary();
+}
+
+// Message handler for popup communication
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getSessionState') {
+    sendResponse(sessionState);
+    return true;
+  }
+
+  if (request.action === 'validateApiKey') {
+    const result = validateApiKey(request.apiKey);
+    sendResponse(result);
+    return true;
+  }
+
+  if (request.action === 'startSession') {
+    startSession(request.purpose, request.apiKey)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('Error in startSession:', error);
+        sendResponse({
+          success: false,
+          error: 'Failed to start session: ' + error.message,
+        });
+      });
+    return true;
+  }
+
+  if (request.action === 'endSession') {
+    endSession().then((result) => {
+      sendResponse(result);
+    });
+    return true;
+  }
+
+  if (request.action === 'checkSummaryStatus') {
+    sendResponse({
+      generating: sessionState.summaryGenerating,
+      ready: sessionState.summaryReady,
+      summary: sessionState.summary,
+    });
+    return true;
+  }
+
+  if (request.action === 'resetSession') {
+    sessionState = {
+      active: false,
+      purpose: '',
+      startTime: null,
+      apiKey: '',
+      lastCheckTime: null,
+      checkIntervalId: null,
+      visitedUrls: [],
+      responses: [],
+      summaryGenerating: false,
+      summaryReady: false,
+      summary: null,
+    };
+    saveSessionState();
+    sendResponse({ success: true });
+    return true;
+  }
 });
