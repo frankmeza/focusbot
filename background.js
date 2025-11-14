@@ -274,20 +274,77 @@ Please provide a brief, encouraging summary (3-4 sentences) of their browsing se
     }
 
     const data = await response.json();
-    sessionState.summary = data.content[0].text;
+    const summaryText = data.content[0].text;
+
+    sessionState.summary = summaryText;
     sessionState.summaryReady = true;
     sessionState.summaryGenerating = false;
     saveSessionState();
 
+    // Calculate actual session duration
+    const sessionDuration = Math.floor(
+      (Date.now() - sessionState.startTime) / 1000 / 60,
+    );
+
+    // Save in the format the popup expects
+    await chrome.storage.local.set({
+      lastSessionSummary: {
+        timestamp: Date.now(),
+        sessionData: {
+          purpose: sessionState.purpose,
+          startTime: sessionState.startTime,
+          duration: sessionDuration,
+          sites: sessionState.visitedUrls.map((url) => ({
+            domain: new URL(url.url).hostname,
+            url: url.url,
+            timeSpent: 0, // We don't track per-page time
+            lastVisit: url.timestamp,
+          })),
+        },
+        summary: summaryText,
+        isFallback: false,
+      },
+    });
+
+    console.log('Summary saved to storage');
     return { success: true };
   } catch (error) {
     console.error('Error generating summary:', error);
+
+    // Calculate actual session duration
+    const sessionDuration = Math.floor(
+      (Date.now() - sessionState.startTime) / 1000 / 60,
+    );
+
     // Provide fallback summary
-    sessionState.summary = `Session completed! You browsed for ${duration} minutes with the goal: "${sessionState.purpose}". You visited ${sessionState.visitedUrls.length} pages. Keep up the focused work!`;
+    const fallbackText = `Session completed! You browsed for ${sessionDuration} minutes with the goal: "${sessionState.purpose}". You visited ${sessionState.visitedUrls.length} pages. Keep up the focused work!`;
+
+    sessionState.summary = fallbackText;
     sessionState.summaryReady = true;
     sessionState.summaryGenerating = false;
     saveSessionState();
 
+    // Save in the format the popup expects
+    await chrome.storage.local.set({
+      lastSessionSummary: {
+        timestamp: Date.now(),
+        sessionData: {
+          purpose: sessionState.purpose,
+          startTime: sessionState.startTime,
+          duration: sessionDuration,
+          sites: sessionState.visitedUrls.map((url) => ({
+            domain: new URL(url.url).hostname,
+            url: url.url,
+            timeSpent: 0, // We don't track per-page time
+            lastVisit: url.timestamp,
+          })),
+        },
+        summary: fallbackText,
+        isFallback: true,
+      },
+    });
+
+    console.log('Fallback summary saved to storage');
     return { success: true, fallback: true };
   }
 }

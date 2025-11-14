@@ -52,12 +52,11 @@ async function loadLastSummary() {
     const summaryDiv = document.getElementById('lastSummary');
     const contentDiv = document.getElementById('lastSummaryContent');
 
-    const sessionDuration = Math.floor(
-      lastSessionSummary.sessionData.sites.reduce(
-        (sum, s) => sum + s.timeSpent,
-        0,
-      ),
-    );
+    const sessionDuration =
+      lastSessionSummary.sessionData.duration ||
+      Math.floor(
+        (Date.now() - lastSessionSummary.sessionData.startTime) / 1000 / 60,
+      );
 
     contentDiv.innerHTML = `
       <p class="summary-timestamp">${new Date(
@@ -288,10 +287,11 @@ async function loadSummaryData() {
       lastSessionSummary.isFallback ? 'fallback' : 'AI-generated',
     );
 
-    const duration = lastSessionSummary.sessionData.sites.reduce(
-      (sum, s) => sum + s.timeSpent,
-      0,
-    );
+    const duration =
+      lastSessionSummary.sessionData.duration ||
+      Math.floor(
+        (Date.now() - lastSessionSummary.sessionData.startTime) / 1000 / 60,
+      );
 
     document.getElementById('summaryDuration').textContent = `${duration}m`;
     document.getElementById('summarySites').textContent =
