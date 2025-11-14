@@ -46,6 +46,25 @@ chrome.storage.local.get(['sessionState'], (result) => {
 // Save session state to storage whenever it changes
 function saveSessionState() {
   chrome.storage.local.set({ sessionState });
+
+  // Also save in the format the popup expects
+  if (sessionState.active) {
+    chrome.storage.local.set({
+      sessionActive: true,
+      sessionData: {
+        purpose: sessionState.purpose,
+        startTime: sessionState.startTime,
+        sites: sessionState.visitedUrls.map((url) => ({
+          domain: new URL(url.url).hostname,
+          url: url.url,
+          timeSpent: 0, // Could calculate this if needed
+          lastVisit: url.timestamp,
+        })),
+      },
+    });
+  } else {
+    chrome.storage.local.set({ sessionActive: false });
+  }
 }
 
 // Validate API key format (client-side only)
@@ -91,8 +110,12 @@ function validateApiKey(apiKey) {
 
 // Start a new focus session
 async function startSession(purpose, apiKey) {
+  console.log('startSession called with purpose:', purpose);
+
   // Validate API key format
   const validation = validateApiKey(apiKey);
+  console.log('Validation result:', validation);
+
   if (!validation.valid) {
     return {
       success: false,
@@ -114,11 +137,13 @@ async function startSession(purpose, apiKey) {
     summary: null,
   };
 
+  console.log('Session state set, saving...');
   saveSessionState();
 
   // Set up the periodic AI check
   sessionState.checkIntervalId = setInterval(performAICheck, AI_CHECK_INTERVAL);
 
+  console.log('Session started successfully');
   // Perform first check after 15 minutes
   return { success: true };
 }
@@ -296,9 +321,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'startSession') {
-    startSession(request.purpose, request.apiKey).then((result) => {
-      sendResponse(result);
-    });
+    startSession(request.purpose, request.apiKey)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        console.error('Error in startSession:', error);
+        sendResponse({
+          success: false,
+          error: 'Failed to start session: ' + error.message,
+        });
+      });
     return true;
   }
 

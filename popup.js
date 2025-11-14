@@ -135,16 +135,32 @@ async function startSession() {
 
     // Start session
     startBtn.textContent = 'Starting session...';
-    await chrome.runtime.sendMessage({
+    const startResult = await chrome.runtime.sendMessage({
       action: 'startSession',
       purpose,
+      apiKey, // FIXED: Now passing the API key!
     });
 
-    // Update UI
-    const { sessionData } = await chrome.storage.local.get('sessionData');
-    if (sessionData) {
-      showActiveView(sessionData);
+    // Check if session started successfully
+    if (!startResult || !startResult.success) {
+      alert(
+        `Failed to start session: ${startResult?.error || 'Unknown error'}`,
+      );
+      startBtn.disabled = false;
+      startBtn.textContent = originalText;
+      return;
     }
+
+    console.log('Session started successfully!');
+
+    // Update UI - construct session data if it doesn't exist yet
+    const { sessionData } = await chrome.storage.local.get('sessionData');
+    const dataToShow = sessionData || {
+      purpose,
+      startTime: Date.now(),
+      sites: [],
+    };
+    showActiveView(dataToShow);
   } catch (error) {
     console.error('Error starting session:', error);
     alert('Error starting session. Please try again.');
