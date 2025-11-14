@@ -555,3 +555,219 @@ textarea {
     color: #ecf0f1;
   }
 }
+/* Checklist Styles - Add this to your popup.css */
+
+.checklist-section {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.checklist-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checklist-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.checklist-caret {
+  font-size: 12px;
+  color: #7f8c8d;
+  transition: transform 0.2s;
+}
+
+.checklist-content {
+  margin-top: 12px;
+}
+
+.checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checklist-item {
+  padding: 8px 12px;
+  background: white;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+}
+
+.checklist-item:hover {
+  background: #ecf0f1;
+}
+
+.checklist-text {
+  flex: 1;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.checklist-actions {
+  display: none;
+  gap: 8px;
+  align-items: center;
+}
+
+.checklist-item:hover .checklist-actions {
+  display: flex;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: #3498db;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-link:hover {
+  background: #e3f2fd;
+  color: #2980b9;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.btn-delete:hover {
+  background: #ffebee;
+  color: #c0392b;
+}
+
+.checklist-nested {
+  list-style: none;
+  padding-left: 20px;
+  margin-top: 6px;
+  margin-bottom: 0;
+  border-left: 2px solid #e0e0e0;
+}
+
+.checklist-add-item {
+  margin-bottom: 6px;
+}
+
+.btn-add-task {
+  background: none;
+  border: 1px dashed #bdc3c7;
+  color: #7f8c8d;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  width: 100%;
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.btn-add-task:hover {
+  border-color: #3498db;
+  color: #3498db;
+  background: #e3f2fd;
+}
+
+.checklist-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.checklist-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.checklist-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .checklist-section {
+    background: #34495e;
+  }
+
+  .checklist-header h3 {
+    color: #ecf0f1;
+  }
+
+  .checklist-caret {
+    color: #95a5a6;
+  }
+
+  .checklist-item {
+    background: #2c3e50;
+  }
+
+  .checklist-item:hover {
+    background: #3d5266;
+  }
+
+  .checklist-text {
+    color: #ecf0f1;
+  }
+
+  .btn-link {
+    color: #5dade2;
+  }
+
+  .btn-link:hover {
+    background: #2c3e50;
+    color: #85c1e9;
+  }
+
+  .btn-delete:hover {
+    background: #4a2c2c;
+  }
+
+  .btn-add-task {
+    border-color: #566573;
+    color: #95a5a6;
+  }
+
+  .btn-add-task:hover {
+    border-color: #5dade2;
+    color: #5dade2;
+    background: #2c3e50;
+  }
+
+  .checklist-input {
+    background: #2c3e50;
+    border-color: #566573;
+    color: #ecf0f1;
+  }
+
+  .checklist-input:focus {
+    border-color: #5dade2;
+  }
+}

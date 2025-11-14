@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadApiKey();
   await checkSessionState();
   await loadLastSummary();
+  await loadChecklist();
   setupEventListeners();
   checkForPendingRelevanceCheck();
 });
@@ -120,6 +121,11 @@ function setupEventListeners() {
   document.getElementById('cancelReset').addEventListener('click', () => {
     hideResetModal();
   });
+
+  // Checklist toggle
+  document
+    .getElementById('checklistHeader')
+    .addEventListener('click', toggleChecklist);
 
   // Relevance check responses
   document.getElementById('yesRelevant').addEventListener('click', () => {
@@ -416,4 +422,215 @@ function showResetModal() {
 // Hide reset modal
 function hideResetModal() {
   document.getElementById('resetModal').style.display = 'none';
+}
+
+// Checklist functionality
+let checklistData = [];
+
+// Load checklist from storage
+async function loadChecklist() {
+  const { checklist } = await chrome.storage.local.get('checklist');
+  checklistData = checklist || [];
+  renderChecklist();
+}
+
+// Save checklist to storage
+async function saveChecklist() {
+  await chrome.storage.local.set({ checklist: checklistData });
+}
+
+// Count total items (including nested)
+function countAllItems(items = checklistData) {
+  let count = 0;
+  for (const item of items) {
+    count++;
+    if (item.steps) {
+      count += countAllItems(item.steps);
+    }
+  }
+  return count;
+}
+
+// Toggle checklist expand/collapse
+function toggleChecklist() {
+  const content = document.getElementById('checklistContent');
+  const caret = document.querySelector('.checklist-caret');
+
+  if (content.style.display === 'none') {
+    content.style.display = 'block';
+    caret.textContent = '▼';
+  } else {
+    content.style.display = 'none';
+    caret.textContent = '▶';
+  }
+}
+
+// Render the entire checklist
+function renderChecklist() {
+  const checklistEl = document.getElementById('checklist');
+  checklistEl.innerHTML = '';
+
+  if (checklistData.length === 0) {
+    // Show "Add task" button when empty
+    const addBtn = createAddButton('Add task', () =>
+      showAddInput(checklistEl, checklistData),
+    );
+    checklistEl.appendChild(addBtn);
+  } else {
+    // Render all items
+    checklistData.forEach((item, index) => {
+      const li = createChecklistItem(item, checklistData, index);
+      checklistEl.appendChild(li);
+    });
+
+    // Show add button if under limit
+    if (countAllItems() < 10) {
+      const addBtn = createAddButton('Add task', () =>
+        showAddInput(checklistEl, checklistData),
+      );
+      checklistEl.appendChild(addBtn);
+    }
+  }
+}
+
+// Create a checklist item (li element)
+function createChecklistItem(item, parentArray, index) {
+  const li = document.createElement('li');
+  li.className = 'checklist-item';
+
+  const textSpan = document.createElement('span');
+  textSpan.className = 'checklist-text';
+  textSpan.textContent = item.text;
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'checklist-actions';
+
+  // Add steps button
+  if (countAllItems() < 10) {
+    const addStepsBtn = document.createElement('button');
+    addStepsBtn.textContent = 'add steps';
+    addStepsBtn.className = 'btn-link';
+    addStepsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!item.steps) {
+        item.steps = [];
+      }
+
+      // Create nested ul if it doesn't exist
+      let nestedUl = li.querySelector('ul');
+      if (!nestedUl) {
+        nestedUl = document.createElement('ul');
+        nestedUl.className = 'checklist-nested';
+        li.appendChild(nestedUl);
+      }
+
+      showAddInput(nestedUl, item.steps);
+    });
+    actionsDiv.appendChild(addStepsBtn);
+  }
+
+  // Delete button
+  const deleteBtn = document.createElement('button');
+  deleteBtn.textContent = 'X';
+  deleteBtn.className = 'btn-delete';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    parentArray.splice(index, 1);
+    saveChecklist();
+    renderChecklist();
+  });
+  actionsDiv.appendChild(deleteBtn);
+
+  li.appendChild(textSpan);
+  li.appendChild(actionsDiv);
+
+  // Render nested steps if they exist
+  if (item.steps && item.steps.length > 0) {
+    const nestedUl = document.createElement('ul');
+    nestedUl.className = 'checklist-nested';
+
+    item.steps.forEach((step, stepIndex) => {
+      const stepLi = createChecklistItem(step, item.steps, stepIndex);
+      nestedUl.appendChild(stepLi);
+    });
+
+    // Add button for nested items if under limit
+    if (countAllItems() < 10) {
+      const addBtn = createAddButton('Add step', () =>
+        showAddInput(nestedUl, item.steps),
+      );
+      nestedUl.appendChild(addBtn);
+    }
+
+    li.appendChild(nestedUl);
+  }
+
+  return li;
+}
+
+// Create "Add" button
+function createAddButton(label, onClick) {
+  const li = document.createElement('li');
+  li.className = 'checklist-add-item';
+
+  const btn = document.createElement('button');
+  btn.textContent = label;
+  btn.className = 'btn-add-task';
+  btn.addEventListener('click', onClick);
+
+  li.appendChild(btn);
+  return li;
+}
+
+// Show input field for adding new item
+function showAddInput(parentEl, dataArray) {
+  // Remove existing add buttons temporarily
+  const addBtns = parentEl.querySelectorAll('.checklist-add-item');
+  addBtns.forEach((btn) => btn.remove());
+
+  // Create input row
+  const li = document.createElement('li');
+  li.className = 'checklist-input-row';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'checklist-input';
+  input.placeholder = 'Enter task...';
+
+  const addBtn = document.createElement('button');
+  addBtn.textContent = 'Add';
+  addBtn.className = 'btn-small btn-primary';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.className = 'btn-small btn-secondary';
+
+  const handleAdd = () => {
+    const text = input.value.trim();
+    if (text) {
+      dataArray.push({ text, steps: [] });
+      saveChecklist();
+      renderChecklist();
+    }
+  };
+
+  const handleCancel = () => {
+    renderChecklist();
+  };
+
+  addBtn.addEventListener('click', handleAdd);
+  cancelBtn.addEventListener('click', handleCancel);
+  input.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      handleAdd();
+    }
+  });
+
+  li.appendChild(input);
+  li.appendChild(addBtn);
+  li.appendChild(cancelBtn);
+  parentEl.appendChild(li);
+
+  // Focus the input
+  input.focus();
 }
