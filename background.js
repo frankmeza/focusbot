@@ -230,7 +230,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // Generate session summary
 async function generateSummary() {
   if (sessionState.summaryGenerating) {
-    return { success: false, error: 'Cannot generate summary' };
+    return { success: false, error: 'Summary already generating' };
   }
 
   sessionState.summaryGenerating = true;
@@ -424,6 +424,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     };
     saveSessionState();
     sendResponse({ success: true });
+    return true;
+  }
+
+  if (request.action === 'triggerAICheck') {
+    if (sessionState.active) {
+      console.log('Manual AI check triggered');
+      performAICheck().then(() => {
+        sendResponse({ success: true });
+      });
+    } else {
+      sendResponse({ success: false, error: 'No active session' });
+    }
     return true;
   }
 });
