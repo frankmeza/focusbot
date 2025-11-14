@@ -79,6 +79,48 @@ function setupEventListeners() {
     showSetupView();
   });
 
+  // Dev reset button
+  const resetBtn = document.getElementById('resetBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      showResetModal();
+    });
+  }
+
+  // Reset modal handlers
+  document
+    .getElementById('confirmReset')
+    .addEventListener('click', async () => {
+      const keepApiKey = document.getElementById('keepApiKey').checked;
+
+      if (keepApiKey) {
+        // Get API key before clearing
+        const { apiKey } = await chrome.storage.local.get('apiKey');
+
+        // Clear all storage
+        await chrome.storage.local.clear();
+
+        // Restore API key
+        if (apiKey) {
+          await chrome.storage.local.set({ apiKey });
+        }
+
+        console.log('Storage cleared! API key preserved.');
+      } else {
+        // Clear everything including API key
+        await chrome.storage.local.clear();
+        console.log('Storage cleared completely!');
+      }
+
+      hideResetModal();
+      chrome.runtime.reload();
+      window.location.reload();
+    });
+
+  document.getElementById('cancelReset').addEventListener('click', () => {
+    hideResetModal();
+  });
+
   // Relevance check responses
   document.getElementById('yesRelevant').addEventListener('click', () => {
     hideRelevanceCheck();
@@ -364,4 +406,14 @@ function showRelevanceCheck(checkData) {
 async function hideRelevanceCheck() {
   document.getElementById('relevanceCheck').style.display = 'none';
   await chrome.storage.local.remove('pendingRelevanceCheck');
+}
+
+// Show reset modal
+function showResetModal() {
+  document.getElementById('resetModal').style.display = 'flex';
+}
+
+// Hide reset modal
+function hideResetModal() {
+  document.getElementById('resetModal').style.display = 'none';
 }
